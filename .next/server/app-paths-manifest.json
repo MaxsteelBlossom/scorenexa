@@ -1,0 +1,12 @@
+{
+  "/page": "app/page.js",
+  "/betting/page": "app/betting/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/categories/page": "app/admin/categories/page.js",
+  "/admin/articles/page": "app/admin/articles/page.js",
+  "/admin/teams/page": "app/admin/teams/page.js",
+  "/admin/media/page": "app/admin/media/page.js",
+  "/admin/leagues/page": "app/admin/leagues/page.js",
+  "/admin/ads/page": "app/admin/ads/page.js",
+  "/admin/users/page": "app/admin/users/page.js"
+}
