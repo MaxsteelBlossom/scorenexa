@@ -4,10 +4,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Shield, Eye, EyeOff, Loader2 } from 'lucide-react'
 
-type Profile = {
-  is_admin: boolean
-}
-
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,6 +18,7 @@ export default function AdminLoginPage() {
     setLoading(true)
     setError('')
 
+    // Step 1: Sign in
     const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (signInError || !data.session) {
@@ -30,34 +27,22 @@ export default function AdminLoginPage() {
       return
     }
 
-    let { data: profile } = await supabase
+    // Step 2: Check admin using raw query to avoid type issues
+    const { data: rows } = await supabase
       .from('profiles')
       .select('is_admin')
       .eq('id', data.session.user.id)
-      .single<Profile>()
 
-    if (!profile) {
-      await supabase.from('profiles').insert({
-        id: data.session.user.id,
-        full_name: data.session.user.email,
-        is_admin: false,
-        is_premium: false,
-      })
-      const { data: newProfile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', data.session.user.id)
-        .single<Profile>()
-      profile = newProfile
-    }
+    const isAdmin = Array.isArray(rows) && rows.length > 0 && rows[0]?.is_admin === true
 
-    if (!profile?.is_admin) {
+    if (!isAdmin) {
       await supabase.auth.signOut()
-      setError('Access denied. Your account does not have admin privileges.')
+      setError('Access denied. Run the SQL query in Supabase to grant admin access.')
       setLoading(false)
       return
     }
 
+    // Step 3: Success
     router.push('/admin')
     router.refresh()
   }
@@ -72,6 +57,7 @@ export default function AdminLoginPage() {
           <h1 className="text-white font-black text-2xl" style={{fontFamily:'Oswald,sans-serif'}}>ADMIN ACCESS</h1>
           <p className="text-slate-500 text-sm mt-1">ScoreNexa Control Panel</p>
         </div>
+
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
