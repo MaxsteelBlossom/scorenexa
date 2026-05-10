@@ -18,7 +18,6 @@ export default function AdminLoginPage() {
     setLoading(true)
     setError('')
 
-    // Step 1: Sign in
     const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (signInError || !data.session) {
@@ -27,22 +26,17 @@ export default function AdminLoginPage() {
       return
     }
 
-    // Step 2: Check admin using raw query to avoid type issues
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', data.session.user.id)
+    // Use raw RPC to avoid type issues entirely
+    const { data: profileData } = await supabase
+      .rpc('get_is_admin', { user_id: data.session.user.id })
 
-    const isAdmin = Array.isArray(rows) && rows.length > 0 && rows[0]?.is_admin === true
-
-    if (!isAdmin) {
+    if (!profileData) {
       await supabase.auth.signOut()
-      setError('Access denied. Run the SQL query in Supabase to grant admin access.')
+      setError('Access denied. Make sure you have run the admin SQL query in Supabase.')
       setLoading(false)
       return
     }
 
-    // Step 3: Success
     router.push('/admin')
     router.refresh()
   }
@@ -57,7 +51,6 @@ export default function AdminLoginPage() {
           <h1 className="text-white font-black text-2xl" style={{fontFamily:'Oswald,sans-serif'}}>ADMIN ACCESS</h1>
           <p className="text-slate-500 text-sm mt-1">ScoreNexa Control Panel</p>
         </div>
-
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
