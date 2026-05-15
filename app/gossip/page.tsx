@@ -1,54 +1,64 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import ArticleCard from '@/components/ui/ArticleCard'
 import AdSlot from '@/components/ui/AdSlot'
-import { timeAgo } from '@/lib/utils'
+import { Clock } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Football Gossip – Rumours, Whispers & Inside Stories',
-  description: "The hottest football gossip and transfer rumours. ScoreNexa's gossip column brings you the inside track on what's really happening.",
+  description: "The hottest football gossip and transfer rumours from ScoreNexa's gossip column.",
 }
 
-const GOSSIP_ITEMS = [
-  { id: '1', title: "EXCLUSIVE: Star Striker's Wife Posts Cryptic Goodbye Message as Exit Talks Accelerate", slug: 'star-striker-wife-goodbye-message', excerpt: "The social media activity from the player's family is fuelling speculation of an imminent departure.", featured_image: null, published_at: new Date(Date.now()-1800000).toISOString(), category_name: 'Gossip', author_name: 'Insider Desk', is_breaking: true, article_type: 'gossip', views: 22400 },
-  { id: '2', title: "City Boss and Chairman Involved in Training Ground Row — Source", slug: 'city-boss-chairman-row', excerpt: "Relations between the manager and the boardroom have reportedly soured significantly since the January window.", featured_image: null, published_at: new Date(Date.now()-5400000).toISOString(), category_name: 'Gossip', author_name: 'Insider Desk', is_breaking: false, article_type: 'gossip', views: 15600 },
-  { id: '3', title: 'Top-Six Defender "Offered Around" by Agent Amid Contract Standoff', slug: 'top-six-defender-offered-around', excerpt: "The defender's representative has been busy making calls as the player's deal enters its final 18 months.", featured_image: null, published_at: new Date(Date.now()-9000000).toISOString(), category_name: 'Gossip', author_name: 'Insider Desk', is_breaking: false, article_type: 'gossip', views: 9800 },
-  { id: '4', title: "Bellingham's Camp Furious After Real Madrid's Latest Snub", slug: 'bellingham-camp-fury-real-madrid', excerpt: "The player reportedly felt humiliated by a commercial decision that sidelined him in a high-profile campaign.", featured_image: null, published_at: new Date(Date.now()-12600000).toISOString(), category_name: 'Gossip', author_name: 'Insider Desk', is_breaking: false, article_type: 'gossip', views: 18300 },
-  { id: '5', title: 'Premier League Dressing Room Divided Over Disgruntled Teammate', slug: 'premier-league-dressing-room-divided', excerpt: "A faction of senior players have reportedly distanced themselves from a teammate who downed tools.", featured_image: null, published_at: new Date(Date.now()-18000000).toISOString(), category_name: 'Gossip', author_name: 'Sources Say', is_breaking: false, article_type: 'gossip', views: 11000 },
-]
+async function getGossip() {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key) return []
+    const res = await fetch(
+      `${url}/rest/v1/articles?status=eq.published&order=published_at.desc&limit=20&or=(category_name.eq.Gossip,article_type.eq.gossip)`,
+      { headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }, next: { revalidate: 60 } }
+    )
+    if (!res.ok) return []
+    return await res.json()
+  } catch { return [] }
+}
 
-export default function GossipPage() {
+export default async function GossipPage() {
+  const articles = await getGossip()
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <div className="inline-flex items-center gap-2 bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full mb-3">🔥 GOSSIP COLUMN</div>
-        <h1 className="text-3xl font-bold text-slate-900" style={{fontFamily:'Oswald,sans-serif'}}>FOOTBALL GOSSIP</h1>
-        <p className="text-slate-500 text-sm mt-1">Inside stories, whispers and rumours from our sources across Europe</p>
-      </div>
+      <div className="inline-flex items-center gap-2 bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full mb-3">🔥 GOSSIP COLUMN</div>
+      <h1 className="text-3xl font-black text-slate-900 mb-1" style={{fontFamily:'Oswald,sans-serif'}}>FOOTBALL GOSSIP</h1>
+      <p className="text-slate-500 text-sm mb-6">Inside stories, whispers and rumours from our sources</p>
       <AdSlot position="banner" className="mb-6"/>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          {GOSSIP_ITEMS.map(a => <ArticleCard key={a.id} article={a} size="medium"/>)}
-        </div>
-        <aside className="space-y-6">
-          <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 rounded-2xl p-4">
-            <h3 className="font-bold text-orange-900 mb-3 flex items-center gap-2" style={{fontFamily:'Oswald,sans-serif'}}>
-              🌡️ GOSSIP HEAT INDEX
-            </h3>
+        <div className="lg:col-span-2">
+          {articles.length > 0 ? (
             <div className="space-y-3">
-              {GOSSIP_ITEMS.slice(0,5).map((g,i) => (
-                <Link key={g.id} href={`/article/${g.slug}`} className="flex items-start gap-2 group">
-                  <span className="text-orange-300 font-bold text-lg w-6 flex-shrink-0">{i+1}</span>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800 group-hover:text-orange-700 transition-colors line-clamp-2 leading-tight">{g.title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">🔥 {g.views.toLocaleString()} reads · {timeAgo(g.published_at)}</p>
+              {articles.map((a: any) => (
+                <Link key={a.id} href={`/article/${a.slug}`} className="group flex gap-4 bg-white rounded-xl border border-slate-100 hover:border-orange-200 hover:shadow-md transition-all p-3">
+                  {a.featured_image ? <img src={a.featured_image} alt={a.title} className="w-28 h-20 object-cover rounded-lg flex-shrink-0"/> : <div className="w-28 h-20 bg-gradient-to-br from-orange-900 to-slate-800 rounded-lg flex-shrink-0 flex items-center justify-center text-2xl">🔥</div>}
+                  <div className="flex-1 min-w-0">
+                    <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded mb-1 inline-block">Gossip</span>
+                    <h3 className="text-slate-800 font-black text-sm line-clamp-2 group-hover:text-orange-700 transition-colors leading-snug" style={{fontFamily:'Oswald,sans-serif'}}>{a.title}</h3>
+                    {a.excerpt && <p className="text-slate-500 text-xs mt-1 line-clamp-1">{a.excerpt}</p>}
+                    <div className="flex items-center gap-3 mt-2 text-slate-400 text-xs">
+                      <span className="flex items-center gap-1"><Clock size={10}/>{a.published_at ? new Date(a.published_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : ''}</span>
+                    </div>
                   </div>
                 </Link>
               ))}
             </div>
-          </div>
-          <AdSlot position="sidebar"/>
-        </aside>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center">
+              <div className="text-5xl mb-4">🔥</div>
+              <h3 className="text-xl font-black text-slate-700 mb-2" style={{fontFamily:'Oswald,sans-serif'}}>NO GOSSIP YET</h3>
+              <p className="text-slate-400 text-sm mb-4">Start your gossip column from the admin panel.</p>
+              <Link href="/admin/articles/new?type=gossip" className="bg-orange-500 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-orange-600 transition-all">Write Gossip Story →</Link>
+            </div>
+          )}
+        </div>
+        <aside><AdSlot position="sidebar"/></aside>
       </div>
     </div>
   )
