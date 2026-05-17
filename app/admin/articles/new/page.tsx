@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Save, Send, ChevronLeft, Tag, Loader2, AlertTriangle } from 'lucide-react'
@@ -10,7 +10,7 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-export default function NewArticlePage() {
+function NewArticleContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const defaultType = searchParams.get('type') || 'news'
@@ -299,5 +299,13 @@ export default function NewArticlePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function NewArticlePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-400">Loading editor...</div>}>
+      <NewArticleContent />
+    </Suspense>
   )
 }
