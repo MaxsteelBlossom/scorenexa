@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Edit, Trash2, Eye, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Eye, Search, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Article {
@@ -23,6 +23,14 @@ const statusColors: Record<string, string> = {
   scheduled: 'bg-blue-100 text-blue-700',
 }
 
+const categoryColors: Record<string, string> = {
+  'News': 'bg-blue-100 text-blue-700',
+  'Transfer News': 'bg-purple-100 text-purple-700',
+  'Gossip': 'bg-orange-100 text-orange-700',
+  'Match Report': 'bg-green-100 text-green-700',
+  'Opinion': 'bg-slate-100 text-slate-600',
+}
+
 export default function ArticlesAdmin() {
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,16 +42,27 @@ export default function ArticlesAdmin() {
 
   const loadArticles = async () => {
     setLoading(true)
-    let query = supabase.from('articles').select('id,title,slug,status,category_name,author_name,views,published_at,is_breaking,article_type').order('created_at', { ascending: false }).limit(50)
-    const { data } = await query
+    const { data } = await supabase
+      .from('articles')
+      .select('id,title,slug,status,category_name,author_name,views,published_at,is_breaking,article_type')
+      .order('created_at', { ascending: false })
+      .limit(100)
     setArticles((data as Article[]) || [])
     setLoading(false)
   }
 
-  const deleteArticle = async (id: string) => {
-    if (!confirm('Delete this article? This cannot be undone.')) return
+  const deleteArticle = async (id: string, title: string) => {
+    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return
     await supabase.from('articles').delete().eq('id', id)
     setArticles(a => a.filter(article => article.id !== id))
+  }
+
+  const toggleStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'published' ? 'draft' : 'published'
+    const updateData: any = { status: newStatus }
+    if (newStatus === 'published') updateData.published_at = new Date().toISOString()
+    await supabase.from('articles').update(updateData).eq('id', id)
+    setArticles(a => a.map(art => art.id === id ? {...art, status: newStatus} : art))
   }
 
   const filtered = articles.filter(a => {
@@ -54,87 +73,132 @@ export default function ArticlesAdmin() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black text-slate-900" style={{fontFamily:'Oswald,sans-serif'}}>ARTICLES</h1>
-        <div className="flex gap-2">
-          {[['News','/admin/articles/new?type=news','bg-blue-600'],['Transfer','/admin/articles/new?type=transfer','bg-purple-600'],['Gossip','/admin/articles/new?type=gossip','bg-orange-500']].map(([l,h,c]) => (
-            <Link key={h} href={h} className={`${c} hover:opacity-90 text-white px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1`}>
-              <Plus size={13}/>{l}
-            </Link>
-          ))}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900" style={{fontFamily:'Oswald,sans-serif'}}>ARTICLES</h1>
+          <p className="text-slate-400 text-sm">{articles.length} total articles</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Link href="/admin/articles/new" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-1.5 transition-all">
+            <Plus size={15}/> News
+          </Link>
+          <Link href="/admin/articles/new?type=transfer" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-1.5 transition-all">
+            <Plus size={15}/> Transfer
+          </Link>
+          <Link href="/admin/articles/new?type=gossip" className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-1.5 transition-all">
+            <Plus size={15}/> Gossip
+          </Link>
         </div>
       </div>
 
+      {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search articles..."
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search articles..."
             className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#E63946] bg-white"/>
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#E63946]">
-          <option value="all">All Status</option>
-          <option value="published">Published</option>
-          <option value="draft">Draft</option>
-          <option value="scheduled">Scheduled</option>
-        </select>
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+          {[['all','All'],['published','Published'],['draft','Drafts']].map(([v,l]) => (
+            <button key={v} onClick={() => setStatusFilter(v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter===v?'bg-white text-slate-900 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <button onClick={loadArticles} className="p-2.5 border border-slate-200 bg-white rounded-xl text-slate-500 hover:text-slate-700 transition-all">
+          <Loader2 size={14} className={loading ? 'animate-spin' : ''}/>
+        </button>
       </div>
 
+      {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-400">Loading articles...</div>
+          <div className="p-12 text-center">
+            <Loader2 size={24} className="animate-spin text-slate-300 mx-auto mb-2"/>
+            <p className="text-slate-400 text-sm">Loading articles...</p>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
             <div className="text-4xl mb-3">📝</div>
-            <p className="font-bold text-slate-600 mb-1">No articles found</p>
-            <p className="text-slate-400 text-sm mb-4">Start publishing content to grow your site.</p>
-            <Link href="/admin/articles/new" className="bg-[#E63946] text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-[#c0303c] transition-all">Write First Article</Link>
+            <p className="font-bold text-slate-600 mb-1">{search ? 'No articles match your search' : 'No articles yet'}</p>
+            <p className="text-slate-400 text-sm mb-4">Start publishing content to grow your site and get AdSense approved.</p>
+            <Link href="/admin/articles/new" className="bg-[#E63946] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#c0303c] transition-all inline-block">
+              ✏️ Write First Article
+            </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
-                  <th className="pl-5 py-3 text-left">Title</th>
-                  <th className="py-3 text-left hidden md:table-cell">Category</th>
-                  <th className="py-3 text-center hidden sm:table-cell">Views</th>
-                  <th className="py-3 text-center">Status</th>
-                  <th className="py-3 text-left hidden md:table-cell">Published</th>
-                  <th className="pr-5 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filtered.map(a => (
-                  <tr key={a.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="pl-5 py-3.5 pr-2">
-                      <div className="flex items-center gap-2">
-                        {a.is_breaking && <span className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">BREAKING</span>}
-                        <p className="font-bold text-slate-800 text-sm line-clamp-1">{a.title}</p>
-                      </div>
-                    </td>
-                    <td className="py-3.5 hidden md:table-cell">
-                      <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">{a.category_name || '—'}</span>
-                    </td>
-                    <td className="py-3.5 text-center hidden sm:table-cell text-sm text-slate-500">{a.views > 0 ? a.views.toLocaleString() : '—'}</td>
-                    <td className="py-3.5 text-center">
-                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${statusColors[a.status] || 'bg-slate-100 text-slate-500'}`}>{a.status}</span>
-                    </td>
-                    <td className="py-3.5 hidden md:table-cell text-xs text-slate-400">{a.published_at ? new Date(a.published_at).toLocaleDateString('en-GB') : '—'}</td>
-                    <td className="pr-5 py-3.5">
-                      <div className="flex items-center gap-2 justify-end">
-                        <Link href={`/article/${a.slug}`} target="_blank" className="text-slate-400 hover:text-blue-600 transition-colors p-1"><Eye size={14}/></Link>
-                        <Link href={`/admin/articles/${a.id}/edit`} className="text-slate-400 hover:text-emerald-600 transition-colors p-1"><Edit size={14}/></Link>
-                        <button onClick={() => deleteArticle(a.id)} className="text-slate-400 hover:text-red-500 transition-colors p-1"><Trash2 size={14}/></button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
+                    <th className="pl-5 py-3 text-left">Title</th>
+                    <th className="py-3 text-left hidden md:table-cell">Category</th>
+                    <th className="py-3 text-center hidden sm:table-cell">Views</th>
+                    <th className="py-3 text-center">Status</th>
+                    <th className="py-3 text-left hidden lg:table-cell">Published</th>
+                    <th className="pr-5 py-3 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
-              Showing {filtered.length} of {articles.length} articles
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filtered.map(a => (
+                    <tr key={a.id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="pl-5 py-3.5 pr-2 max-w-[280px]">
+                        <div className="flex items-start gap-2">
+                          {a.is_breaking && (
+                            <span className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">BREAKING</span>
+                          )}
+                          <p className="font-bold text-slate-800 text-sm line-clamp-2 leading-snug">{a.title}</p>
+                        </div>
+                        <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">{a.slug}</p>
+                      </td>
+                      <td className="py-3.5 hidden md:table-cell">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${categoryColors[a.category_name||''] || 'bg-slate-100 text-slate-500'}`}>
+                          {a.category_name || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 text-center hidden sm:table-cell">
+                        <span className="text-sm text-slate-500">{a.views > 0 ? a.views.toLocaleString() : '—'}</span>
+                      </td>
+                      <td className="py-3.5 text-center">
+                        <button onClick={() => toggleStatus(a.id, a.status)}
+                          className={`text-xs font-bold px-2.5 py-1 rounded-full transition-all hover:opacity-80 ${statusColors[a.status] || 'bg-slate-100 text-slate-500'}`}>
+                          {a.status}
+                        </button>
+                      </td>
+                      <td className="py-3.5 hidden lg:table-cell">
+                        <span className="text-xs text-slate-400">
+                          {a.published_at ? new Date(a.published_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—'}
+                        </span>
+                      </td>
+                      <td className="pr-5 py-3.5">
+                        <div className="flex items-center gap-1 justify-end">
+                          <Link href={`/article/${a.slug}`} target="_blank"
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View live">
+                            <Eye size={14}/>
+                          </Link>
+                          <Link href={`/admin/articles/${a.id}/edit`}
+                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="Edit">
+                            <Edit size={14}/>
+                          </Link>
+                          <button onClick={() => deleteArticle(a.id, a.title)}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Delete">
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
+            <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+              <span>Showing {filtered.length} of {articles.length} articles</span>
+              <span>{articles.filter(a=>a.status==='published').length} published · {articles.filter(a=>a.status==='draft').length} drafts</span>
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface AdSlotProps {
   position: 'banner' | 'sidebar' | 'in-article' | 'mobile-footer'
@@ -12,40 +12,43 @@ declare global {
 
 export default function AdSlot({ position, className = '' }: AdSlotProps) {
   const adsenseId = process.env.NEXT_PUBLIC_ADSENSE_ID
+  const adRef = useRef<HTMLModElement>(null)
+  const pushed = useRef(false)
 
   useEffect(() => {
-    if (adsenseId && adsenseId !== 'ca-pub-XXXXXXXXXX') {
-      try { (window.adsbygoogle = window.adsbygoogle || []).push({}) } catch {}
+    if (adsenseId && adsenseId !== 'ca-pub-XXXXXXXXXX' && !pushed.current) {
+      try {
+        pushed.current = true
+        ;(window.adsbygoogle = window.adsbygoogle || []).push({})
+      } catch {}
     }
-  }, [])
+  }, [adsenseId])
 
-  // If no real AdSense ID, show placeholder (for dev)
+  // No AdSense ID = show nothing (clean site for visitors)
   if (!adsenseId || adsenseId === 'ca-pub-XXXXXXXXXX') {
-    const sizes: Record<string, string> = {
-      banner: 'h-[90px] md:h-[90px]',
-      sidebar: 'h-[250px]',
-      'in-article': 'h-[280px]',
-      'mobile-footer': 'h-[50px] fixed bottom-0 left-0 right-0 z-40',
-    }
-    return (
-      <div className={`ad-container ${sizes[position] || 'h-[90px]'} ${className}`}>
-        <div className="flex flex-col items-center">
-          <span className="ad-label">Advertisement</span>
-          <span className="text-xs text-slate-400 mt-1">{position} ad slot</span>
-        </div>
-      </div>
-    )
+    return null
+  }
+
+  const adStyles: Record<string, React.CSSProperties> = {
+    banner: { display: 'block', minHeight: '90px' },
+    sidebar: { display: 'block', minHeight: '250px' },
+    'in-article': { display: 'block', minHeight: '280px' },
+    'mobile-footer': { display: 'block', minHeight: '50px' },
   }
 
   return (
     <div className={className}>
-      <p className="ad-label text-center text-xs text-slate-400 mb-1">Advertisement</p>
-      <ins className="adsbygoogle block"
+      <p style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+        Advertisement
+      </p>
+      <ins
+        ref={adRef}
+        className="adsbygoogle"
+        style={adStyles[position] || { display: 'block' }}
         data-ad-client={adsenseId}
         data-ad-slot="auto"
         data-ad-format={position === 'banner' ? 'horizontal' : 'auto'}
         data-full-width-responsive="true"
-        style={{ display: 'block' }}
       />
     </div>
   )
