@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Plus, Edit, Trash2, Eye, Search, Loader2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 interface Article {
   id: string
@@ -36,33 +35,56 @@ export default function ArticlesAdmin() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const supabase = createClient()
 
-  useEffect(() => { loadArticles() }, [])
+  const getHeaders = async () => {
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const session = await supabase.auth.getSession()
+    const token = session.data.session?.access_token || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    return {
+      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+  }
 
   const loadArticles = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('articles')
-      .select('id,title,slug,status,category_name,author_name,views,published_at,is_breaking,article_type')
-      .order('created_at', { ascending: false })
-      .limit(100)
-    setArticles((data as Article[]) || [])
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/articles?select=id,title,slug,status,category_name,author_name,views,published_at,is_breaking,article_type&order=created_at.desc&limit=100`,
+        { headers }
+      )
+      const data = await res.json()
+      setArticles(Array.isArray(data) ? data : [])
+    } catch { setArticles([]) }
     setLoading(false)
   }
 
+  useEffect(() => { loadArticles() }, [])
+
   const deleteArticle = async (id: string, title: string) => {
     if (!confirm(`Delete "${title}"? This cannot be undone.`)) return
-    await supabase.from('articles').delete().eq('id', id)
-    setArticles(a => a.filter(article => article.id !== id))
+    const headers = await getHeaders()
+    await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/articles?id=eq.${id}`, {
+      method: 'DELETE', headers
+    })
+    setArticles(a => a.filter(art => art.id !== id))
   }
 
   const toggleStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'published' ? 'draft' : 'published'
-    const updateData: any = { status: newStatus }
-    if (newStatus === 'published') updateData.published_at = new Date().toISOString()
-    await supabase.from('articles').update(updateData).eq('id', id)
-    setArticles(a => a.map(art => art.id === id ? {...art, status: newStatus} : art))
+    const headers = await getHeaders()
+    await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/articles?id=eq.${id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        status: newStatus,
+        published_at: newStatus === 'published' ? new Date().toISOString() : null
+      })
+    })
+    setArticles(a => a.map(art => art.id === id ? { ...art, status: newStatus } : art))
   }
 
   const filtered = articles.filter(a => {
@@ -91,7 +113,6 @@ export default function ArticlesAdmin() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -102,17 +123,16 @@ export default function ArticlesAdmin() {
         <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
           {[['all','All'],['published','Published'],['draft','Drafts']].map(([v,l]) => (
             <button key={v} onClick={() => setStatusFilter(v)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter===v?'bg-white text-slate-900 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter===v?'bg-white text-slate-900 shadow-sm':'text-slate-500'}`}>
               {l}
             </button>
           ))}
         </div>
-        <button onClick={loadArticles} className="p-2.5 border border-slate-200 bg-white rounded-xl text-slate-500 hover:text-slate-700 transition-all">
+        <button onClick={loadArticles} className="p-2.5 border border-slate-200 bg-white rounded-xl text-slate-500 hover:text-slate-700 transition-all" title="Refresh">
           <Loader2 size={14} className={loading ? 'animate-spin' : ''}/>
         </button>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">
@@ -123,7 +143,7 @@ export default function ArticlesAdmin() {
           <div className="p-12 text-center">
             <div className="text-4xl mb-3">📝</div>
             <p className="font-bold text-slate-600 mb-1">{search ? 'No articles match your search' : 'No articles yet'}</p>
-            <p className="text-slate-400 text-sm mb-4">Start publishing content to grow your site and get AdSense approved.</p>
+            <p className="text-slate-400 text-sm mb-4">Start publishing content to grow your site.</p>
             <Link href="/admin/articles/new" className="bg-[#E63946] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#c0303c] transition-all inline-block">
               ✏️ Write First Article
             </Link>
@@ -144,7 +164,7 @@ export default function ArticlesAdmin() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filtered.map(a => (
-                    <tr key={a.id} className="hover:bg-slate-50 transition-colors group">
+                    <tr key={a.id} className="hover:bg-slate-50 transition-colors">
                       <td className="pl-5 py-3.5 pr-2 max-w-[280px]">
                         <div className="flex items-start gap-2">
                           {a.is_breaking && (
@@ -164,7 +184,8 @@ export default function ArticlesAdmin() {
                       </td>
                       <td className="py-3.5 text-center">
                         <button onClick={() => toggleStatus(a.id, a.status)}
-                          className={`text-xs font-bold px-2.5 py-1 rounded-full transition-all hover:opacity-80 ${statusColors[a.status] || 'bg-slate-100 text-slate-500'}`}>
+                          title="Click to toggle status"
+                          className={`text-xs font-bold px-2.5 py-1 rounded-full transition-all hover:opacity-75 ${statusColors[a.status] || 'bg-slate-100 text-slate-500'}`}>
                           {a.status}
                         </button>
                       </td>
