@@ -65,7 +65,7 @@ export default function Header() {
           <div className="text-xs text-slate-400 flex items-center gap-4">
             <span className="flex items-center gap-1.5 text-[#E63946] font-semibold">
               <Zap size={11} className="animate-pulse" />
-              Live Scores. News. Stats. Everything Sports.
+              Live Scores. News. Stats. Everything Sports
             </span>
             <span className="text-slate-600 hidden lg:block">
               {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
